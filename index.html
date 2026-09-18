@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Type Quest RPG - PVP Online Edition</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+    body { background-color: #0b0f19; color: #f1f5f9; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+    .app-container { width: 100%; max-width: 900px; display: flex; flex-direction: column; gap: 15px; }
+
+    .landing-card { background: #1e293b; border-radius: 20px; border: 1px solid #334155; padding: 40px 30px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.5); display: flex; flex-direction: column; align-items: center; gap: 20px; }
+    .hero-title { font-size: 36px; font-weight: 800; color: #ef4444; letter-spacing: 1px; }
+    .start-main-btn { padding: 14px 40px; background: #ef4444; color: #fff; border: none; border-radius: 10px; font-size: 18px; font-weight: 800; cursor: pointer; transition: all 0.2s; }
+    .start-main-btn:hover { background: #f87171; transform: scale(1.03); }
+
+    .game-screen { display: none; flex-direction: column; gap: 15px; width: 100%; }
+
+    /* KEYBOARD NGAMBANG */
+    .floating-keyboard { position: sticky; top: 10px; z-index: 100; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(12px); padding: 12px 18px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.12); display: flex; flex-direction: column; align-items: center; gap: 5px; }
+    .key-row { display: flex; gap: 4px; }
+    .key { position: relative; min-width: 28px; height: 30px; padding: 0 6px; background: rgba(51, 65, 85, 0.6); color: #e2e8f0; border-radius: 6px; display: flex; justify-content: center; align-items: center; font-size: 11px; font-weight: 600; }
+    .key.space { width: 180px; }
+    .key.home-row::after { content: ''; position: absolute; bottom: 3px; width: 10px; height: 2px; background-color: #38bdf8; border-radius: 2px; box-shadow: 0 0 6px #38bdf8; }
+    .key.target { background: #facc15 !important; color: #0f172a !important; transform: translateY(-2px); }
+    .key.pressed { background: #22c55e !important; color: #0f172a !important; transform: translateY(2px); }
+
+    /* RPG ARENA */
+    .main-card { background: #1e293b; border-radius: 16px; border: 1px solid #334155; overflow: hidden; }
+    .header-bar { background: #dc2626; color: #fff; padding: 12px 20px; display: flex; justify-content: space-between; font-weight: 800; }
+    .battle-arena { padding: 24px; background: #0f172a; display: flex; justify-content: space-around; align-items: center; border-bottom: 2px dashed #334155; }
+    .character { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .avatar { font-size: 54px; }
+    .health-bar-bg { width: 140px; height: 12px; background: #334155; border-radius: 6px; overflow: hidden; }
+    .health-bar-fill { height: 100%; background: #22c55e; width: 100%; transition: width 0.2s ease; }
+    
+    .content-section { padding: 20px 24px; }
+    .paragraph-box { font-size: 18px; line-height: 1.8; color: #94a3b8; margin-bottom: 16px; background: #0f172a; padding: 16px; border-radius: 12px; border: 1px solid #334155; min-height: 100px; }
+    .correct { color: #22c55e; background: rgba(34, 197, 94, 0.1); }
+    .current-word { color: #facc15; font-weight: bold; }
+    .next-char { background: #ef4444; color: #fff; border-radius: 2px; padding: 0 2px; }
+    .input-box { width: 100%; padding: 12px 16px; font-size: 18px; background: #0f172a; color: #fff; border: 2px solid #ef4444; border-radius: 8px; outline: none; }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+
+    <div class="landing-card" id="landing-screen">
+      <h1 class="hero-title">TYPE QUEST RPG: PVP</h1>
+      <p id="status-text">Klik tombol di bawah untuk mencari lawan bertarung secara online!</p>
+      <button class="start-main-btn" onclick="findMatch()">Cari Match ⚔️</button>
+    </div>
+
+    <div class="game-screen" id="game-screen">
+      <!-- KEYBOARD -->
+      <div class="floating-keyboard">
+        <div class="key-row">
+          <div class="key" data-key="q">Q</div><div class="key" data-key="w">W</div><div class="key" data-key="e">E</div><div class="key" data-key="r">R</div><div class="key" data-key="t">T</div><div class="key" data-key="y">Y</div><div class="key" data-key="u">U</div><div class="key" data-key="i">I</div><div class="key" data-key="o">O</div><div class="key" data-key="p">P</div>
+        </div>
+        <div class="key-row">
+          <div class="key" data-key="a">A</div><div class="key" data-key="s">S</div><div class="key" data-key="d">D</div><div class="key home-row" data-key="f">F</div><div class="key" data-key="g">G</div><div class="key" data-key="h">H</div><div class="key home-row" data-key="j">J</div><div class="key" data-key="k">K</div><div class="key" data-key="l">L</div>
+        </div>
+        <div class="key-row">
+          <div class="key" data-key="z">Z</div><div class="key" data-key="x">X</div><div class="key" data-key="c">C</div><div class="key" data-key="v">V</div><div class="key" data-key="b">B</div><div class="key" data-key="n">N</div><div class="key" data-key="m">M</div>
+        </div>
+        <div class="key-row"><div class="key space" data-key=" ">SPACE</div></div>
+      </div>
+
+      <!-- ARENA -->
+      <div class="main-card">
+        <div class="header-bar">
+          <div>PVP ARENA</div>
+          <div>STATUS: DUELING</div>
+        </div>
+
+        <div class="battle-arena">
+          <div class="character">
+            <div class="avatar">🗡️</div>
+            <div>Kamu (Hero 1)</div>
+            <div class="health-bar-bg"><div class="health-bar-fill" id="my-hp"></div></div>
+          </div>
+          <div style="font-weight: 800; color: #ef4444; font-size: 24px;">VS</div>
+          <div class="character">
+            <div class="avatar">🥷</div>
+            <div>Lawan (Hero 2)</div>
+            <div class="health-bar-bg"><div class="health-bar-fill" id="opponent-hp"></div></div>
+          </div>
+        </div>
+
+        <div class="content-section">
+          <div class="paragraph-box" id="paragraph-display"></div>
+          <input type="text" class="input-box" id="typing-input" placeholder="Ketik secepat mungkin..." autocomplete="off">
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const socket = io();
+    let currentRoomId = null;
+    let targetWords = [];
+    let currentWordIndex = 0;
+
+    const landingScreen = document.getElementById("landing-screen");
+    const gameScreen = document.getElementById("game-screen");
+    const statusText = document.getElementById("status-text");
+    const typingInput = document.getElementById("typing-input");
+    const paragraphDisplay = document.getElementById("paragraph-display");
+    const myHp = document.getElementById("my-hp");
+    const opponentHp = document.getElementById("opponent-hp");
+
+    function findMatch() {
+      statusText.textContent = "Mencari lawan di server...";
+    }
+
+    socket.on('waiting', (msg) => {
+      statusText.textContent = msg;
+    });
+
+    socket.on('game_start', (data) => {
+      currentRoomId = `room_${data.p1Id}_${data.p2Id}`;
+      targetWords = data.text.split(" ");
+      currentWordIndex = 0;
+
+      landingScreen.style.display = "none";
+      gameScreen.style.display = "flex";
+      
+      typingInput.value = "";
+      typingInput.focus();
+      myHp.style.width = "100%";
+      opponentHp.style.width = "100%";
+
+      renderParagraph();
+      updateTargetKey();
+    });
+
+    socket.on('opponent_progress', (data) => {
+      const remainingHpPercent = 100 - ((data.wordIndex / data.totalWords) * 100);
+      opponentHp.style.width = `${remainingHpPercent}%`;
+
+      if (data.wordIndex >= data.totalWords) {
+        alert("❌ Kamu Kalah! Lawan menyelesaikan mantra lebih cepat.");
+        location.reload();
+      }
+    });
+
+    typingInput.addEventListener("input", () => {
+      const currentInput = typingInput.value;
+      const targetWord = targetWords[currentWordIndex];
+
+      if (currentInput.endsWith(" ")) {
+        if (currentInput.trim() === targetWord) {
+          currentWordIndex++;
+          typingInput.value = "";
+
+          // Kirim progress ke server
+          socket.emit('typing_progress', {
+            roomId: currentRoomId,
+            wordIndex: currentWordIndex,
+            totalWords: targetWords.length
+          });
+
+          // HP kita berkurang visualnya kalau progress lawan naik, tapi di sini kita tampilkan damage yang diberikan ke lawan:
+          // HP lawan berkurang di sisi layar kita saat kita berhasil ngetik
+          
+          if (currentWordIndex >= targetWords.length) {
+            alert("🏆 MENANG! Kamu berhasil mengalahkan lawan!");
+            location.reload();
+            return;
+          }
+        }
+      }
+
+      renderParagraph();
+      updateTargetKey();
+    });
+
+    function renderParagraph() {
+      const currentInput = typingInput.value;
+      paragraphDisplay.innerHTML = targetWords.map((word, index) => {
+        if (index < currentWordIndex) {
+          return `<span class="correct">${word}</span>`;
+        } else if (index === currentWordIndex) {
+          let charMarkup = "";
+          for (let i = 0; i < word.length; i++) {
+            if (i === currentInput.length) {
+              charMarkup += `<span class="next-char">${word[i]}</span>`;
+            } else {
+              charMarkup += word[i];
+            }
+          }
+          return `<span class="current-word">${charMarkup}</span>`;
+        } else {
+          return `<span>${word}</span>`;
+        }
+      }).join(" ");
+    }
+
+    function updateTargetKey() {
+      document.querySelectorAll(".key").forEach(k => k.classList.remove("target"));
+      const currentInput = typingInput.value;
+      const targetWord = targetWords[currentWordIndex];
+      if (!targetWord) return;
+
+      let nextChar = (currentInput.length < targetWord.length) ? targetWord[currentInput.length].toLowerCase() : " ";
+      const keyEl = document.querySelector(`.key[data-key="${nextChar}"]`);
+      if (keyEl) keyEl.classList.add("target");
+    }
+
+    window.addEventListener("keydown", (e) => {
+      const keyEl = document.querySelector(`.key[data-key="${e.key.toLowerCase()}"]`);
+      if (keyEl) keyEl.classList.add("pressed");
+    });
+
+    window.addEventListener("keyup", (e) => {
+      const keyEl = document.querySelector(`.key[data-key="${e.key.toLowerCase()}"]`);
+      if (keyEl) keyEl.classList.remove("pressed");
+    });
+  </script>
+</body>
+</html>
